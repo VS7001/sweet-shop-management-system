@@ -9,6 +9,11 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
 @app.get("/")
 def root():
     return {"message": "Sweet Shop Backend is running"}
@@ -27,3 +32,10 @@ def register_user(data: RegisterRequest):
     return {
         "email": data.email
     }
+@app.post("/api/auth/login")
+def login_user(data: LoginRequest):
+    for user in app.state.users:
+        if user["email"] == data.email and user["password"] == data.password:
+            return {"email": data.email}
+
+    raise HTTPException(status_code=401, detail="Invalid credentials")

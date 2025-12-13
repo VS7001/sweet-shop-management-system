@@ -2,13 +2,22 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from jose import jwt
 from datetime import datetime, timedelta
+from .database import SessionLocal, engine
+from .models import User, Sweet
+from .database import Base
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# in-memory storage (will be replaced by DB later)
-app.state.users = []
-app.state.sweets = []
-
+Base.metadata.create_all(bind=engine)
 
 # JWT config (simple for assignment)
 SECRET_KEY = "secret123"
@@ -41,85 +50,126 @@ def root():
 
 @app.post("/api/auth/register", status_code=201)
 def register_user(data: RegisterRequest):
-    for user in app.state.users:
-        if user["email"] == data.email:
-            raise HTTPException(status_code=400, detail="User already exists")
+    db = SessionLocal()
 
-    app.state.users.append({
-        "email": data.email,
-        "password": data.password
-    })
+    existing_user = db.query(User).filter(User.email == data.email).first()
+    if existing_user:
+        db.close()
+        raise HTTPException(status_code=400, detail="User already exists")
 
-    return {
-        "email": data.email
-    }
+    user = User(email=data.email, password=data.password)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    db.close()
 
-# --------- Login + JWT ---------
+    return {"email": user.email}
+
 
 @app.post("/api/auth/login")
 def login_user(data: LoginRequest):
-    for user in app.state.users:
-        if user["email"] == data.email and user["password"] == data.password:
-            payload = {
-                "sub": data.email,
-                "exp": datetime.utcnow() + timedelta(minutes=30)
-            }
+    db = SessionLocal()
 
-            token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    user = db.query(User).filter(
+        User.email == data.email,
+        User.password == data.password
+    ).first()
 
-            return {
-                "access_token": token,
-                "token_type": "bearer"
-            }
+    if not user:
+        db.close()
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    raise HTTPException(status_code=401, detail="Invalid credentials")
+    payload = {
+        "sub": user.email,
+        "exp": datetime.utcnow() + timedelta(minutes=30)
+    }
+
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    db.close()
+
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
 @app.post("/api/sweets", status_code=201)
 def add_sweet(data: SweetRequest):
-    sweet = {
-        "id": len(app.state.sweets) + 1,
-        "name": data.name,
-        "category": data.category,
-        "price": data.price,
-        "quantity": data.quantity
-    }
+    db = SessionLocal()
 
-    app.state.sweets.append(sweet)
-    return sweet
+    sweet = Sweet(
+        name=data.name,
+        category=data.category,
+        price=data.price,
+        quantity=data.quantity
+    )
+
+    db.add(sweet)
+    db.commit()
+    db.refresh(sweet)
+    db.close()
+
+    return {
+        "id": sweet.id,
+        "name": sweet.name,
+        "category": sweet.category,
+        "price": sweet.price,
+        "quantity": sweet.quantity
+    }
 
 
 @app.get("/api/sweets")
 def list_sweets():
-    return app.state.sweets
+    db = SessionLocal()
+    sweets = db.query(Sweet).all()
+    db.close()
+    return sweets
+
 
 
 @app.get("/api/sweets/search")
 def search_sweets(name: str | None = None):
-    results = app.state.sweets
+    db = SessionLocal()
+    query = db.query(Sweet)
 
     if name:
-        results = [s for s in results if s["name"].lower() == name.lower()]
+        query = query.filter(Sweet.name.ilike(name))
 
+    results = query.all()
+    db.close()
     return results
 
 @app.post("/api/sweets/{sweet_id}/purchase")
 def purchase_sweet(sweet_id: int):
-    for sweet in app.state.sweets:
-        if sweet["id"] == sweet_id:
-            if sweet["quantity"] <= 0:
-                raise HTTPException(status_code=400, detail="Out of stock")
+    db = SessionLocal()
+    sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
 
-            sweet["quantity"] -= 1
-            return sweet
+    if not sweet:
+        db.close()
+        raise HTTPException(status_code=404, detail="Sweet not found")
 
-    raise HTTPException(status_code=404, detail="Sweet not found")
+    if sweet.quantity <= 0:
+        db.close()
+        raise HTTPException(status_code=400, detail="Out of stock")
+
+    sweet.quantity -= 1
+    db.commit()
+    db.refresh(sweet)
+    db.close()
+    return sweet
 
 
 @app.post("/api/sweets/{sweet_id}/restock")
 def restock_sweet(sweet_id: int):
-    for sweet in app.state.sweets:
-        if sweet["id"] == sweet_id:
-            sweet["quantity"] += 1
-            return sweet
+    db = SessionLocal()
+    sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
 
-    raise HTTPException(status_code=404, detail="Sweet not found")
+    if not sweet:
+        db.close()
+        raise HTTPException(status_code=404, detail="Sweet not found")
+
+    sweet.quantity += 1
+    db.commit()
+    db.refresh(sweet)
+    db.close()
+    return sweet
+

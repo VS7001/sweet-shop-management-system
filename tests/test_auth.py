@@ -54,7 +54,8 @@ def test_user_login_success():
     )
 
     assert response.status_code == 200
-    assert response.json()["email"] == "login@example.com"
+    assert "access_token" in response.json()
+
 def test_login_returns_token():
     client.post(
         "/api/auth/register",

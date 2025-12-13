@@ -4,3 +4,9 @@ __pycache__/
 
 # Virtual environment
 venv/
+
+# SQLite database
+*.db
+
+# Screenshots (will be added later)
+screenshots/

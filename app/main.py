@@ -7,6 +7,8 @@ app = FastAPI()
 
 # in-memory storage (will be replaced by DB later)
 app.state.users = []
+app.state.sweets = []
+
 
 # JWT config (simple for assignment)
 SECRET_KEY = "secret123"
@@ -21,6 +23,13 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class SweetRequest(BaseModel):
+    name: str
+    category: str
+    price: float
+    quantity: int
+
 
 # --------- Routes ---------
 
@@ -64,3 +73,31 @@ def login_user(data: LoginRequest):
             }
 
     raise HTTPException(status_code=401, detail="Invalid credentials")
+
+@app.post("/api/sweets", status_code=201)
+def add_sweet(data: SweetRequest):
+    sweet = {
+        "id": len(app.state.sweets) + 1,
+        "name": data.name,
+        "category": data.category,
+        "price": data.price,
+        "quantity": data.quantity
+    }
+
+    app.state.sweets.append(sweet)
+    return sweet
+
+
+@app.get("/api/sweets")
+def list_sweets():
+    return app.state.sweets
+
+
+@app.get("/api/sweets/search")
+def search_sweets(name: str | None = None):
+    results = app.state.sweets
+
+    if name:
+        results = [s for s in results if s["name"].lower() == name.lower()]
+
+    return results

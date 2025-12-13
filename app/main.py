@@ -101,3 +101,25 @@ def search_sweets(name: str | None = None):
         results = [s for s in results if s["name"].lower() == name.lower()]
 
     return results
+
+@app.post("/api/sweets/{sweet_id}/purchase")
+def purchase_sweet(sweet_id: int):
+    for sweet in app.state.sweets:
+        if sweet["id"] == sweet_id:
+            if sweet["quantity"] <= 0:
+                raise HTTPException(status_code=400, detail="Out of stock")
+
+            sweet["quantity"] -= 1
+            return sweet
+
+    raise HTTPException(status_code=404, detail="Sweet not found")
+
+
+@app.post("/api/sweets/{sweet_id}/restock")
+def restock_sweet(sweet_id: int):
+    for sweet in app.state.sweets:
+        if sweet["id"] == sweet_id:
+            sweet["quantity"] += 1
+            return sweet
+
+    raise HTTPException(status_code=404, detail="Sweet not found")

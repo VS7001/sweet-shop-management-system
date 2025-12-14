@@ -1,12 +1,14 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from typing import Optional
-from jose import jwt
+from jose import jwt, JWTError
 from datetime import datetime, timedelta
 
 from .database import SessionLocal, engine, Base
 from .models import User, Sweet
 from fastapi.middleware.cors import CORSMiddleware
+
+# ---------------- APP SETUP ----------------
 
 app = FastAPI()
 
@@ -23,11 +25,12 @@ Base.metadata.create_all(bind=engine)
 SECRET_KEY = "secret123"
 ALGORITHM = "HS256"
 
-# ---------- REQUEST MODELS ----------
+# ---------------- MODELS ----------------
 
 class RegisterRequest(BaseModel):
     email: str
     password: str
+    role: Optional[str] = "user"   # user | admin
 
 class LoginRequest(BaseModel):
     email: str
@@ -45,13 +48,34 @@ class SweetUpdateRequest(BaseModel):
     price: Optional[float] = None
     quantity: Optional[int] = None
 
-# ---------- ROUTES ----------
+# ---------------- AUTH HELPERS ----------------
+
+def get_current_user(authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing token")
+
+    try:
+        token = authorization.split(" ")[1]
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        role = payload.get("role")
+    except (JWTError, IndexError):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    return {"email": email, "role": role}
+
+def require_admin(user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+# ---------------- ROUTES ----------------
 
 @app.get("/")
 def root():
     return {"message": "Sweet Shop Backend is running"}
 
-# ---------- AUTH ----------
+# ---------------- AUTH ----------------
 
 @app.post("/api/auth/register", status_code=201)
 def register_user(data: RegisterRequest):
@@ -61,13 +85,18 @@ def register_user(data: RegisterRequest):
         db.close()
         raise HTTPException(status_code=400, detail="User already exists")
 
-    user = User(email=data.email, password=data.password)
+    user = User(
+        email=data.email,
+        password=data.password,
+        role=data.role
+    )
+
     db.add(user)
     db.commit()
     db.refresh(user)
     db.close()
 
-    return {"email": user.email}
+    return {"email": user.email, "role": user.role}
 
 
 @app.post("/api/auth/login")
@@ -85,6 +114,7 @@ def login_user(data: LoginRequest):
 
     payload = {
         "sub": user.email,
+        "role": user.role,
         "exp": datetime.utcnow() + timedelta(minutes=30)
     }
 
@@ -93,26 +123,7 @@ def login_user(data: LoginRequest):
 
     return {"access_token": token, "token_type": "bearer"}
 
-# ---------- SWEETS ----------
-
-@app.post("/api/sweets", status_code=201)
-def add_sweet(data: SweetCreateRequest):
-    db = SessionLocal()
-
-    sweet = Sweet(
-        name=data.name,
-        category=data.category,
-        price=data.price,
-        quantity=data.quantity
-    )
-
-    db.add(sweet)
-    db.commit()
-    db.refresh(sweet)
-    db.close()
-
-    return sweet
-
+# ---------------- SWEETS (PUBLIC READ) ----------------
 
 @app.get("/api/sweets")
 def list_sweets():
@@ -145,24 +156,39 @@ def search_sweets(
     db.close()
     return results
 
+# ---------------- SWEETS (ADMIN) ----------------
 
-@app.put("/api/sweets/{sweet_id}")
-def update_sweet(sweet_id: int, data: SweetUpdateRequest):
+@app.post("/api/sweets", status_code=201)
+def add_sweet(
+    data: SweetCreateRequest,
+    user=Depends(require_admin)
+):
     db = SessionLocal()
 
+    sweet = Sweet(**data.dict())
+    db.add(sweet)
+    db.commit()
+    db.refresh(sweet)
+    db.close()
+
+    return sweet
+
+
+@app.put("/api/sweets/{sweet_id}")
+def update_sweet(
+    sweet_id: int,
+    data: SweetUpdateRequest,
+    user=Depends(require_admin)
+):
+    db = SessionLocal()
     sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
+
     if not sweet:
         db.close()
         raise HTTPException(status_code=404, detail="Sweet not found")
 
-    if data.name is not None:
-        sweet.name = data.name
-    if data.category is not None:
-        sweet.category = data.category
-    if data.price is not None:
-        sweet.price = data.price
-    if data.quantity is not None:
-        sweet.quantity = data.quantity
+    for field, value in data.dict(exclude_unset=True).items():
+        setattr(sweet, field, value)
 
     db.commit()
     db.refresh(sweet)
@@ -172,7 +198,10 @@ def update_sweet(sweet_id: int, data: SweetUpdateRequest):
 
 
 @app.delete("/api/sweets/{sweet_id}", status_code=204)
-def delete_sweet(sweet_id: int):
+def delete_sweet(
+    sweet_id: int,
+    user=Depends(require_admin)
+):
     db = SessionLocal()
     sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
 
@@ -184,11 +213,13 @@ def delete_sweet(sweet_id: int):
     db.commit()
     db.close()
 
-
-# ---------- INVENTORY ----------
+# ---------------- INVENTORY ----------------
 
 @app.post("/api/sweets/{sweet_id}/purchase")
-def purchase_sweet(sweet_id: int):
+def purchase_sweet(
+    sweet_id: int,
+    user=Depends(get_current_user)
+):
     db = SessionLocal()
     sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
 
@@ -204,11 +235,15 @@ def purchase_sweet(sweet_id: int):
     db.commit()
     db.refresh(sweet)
     db.close()
+
     return sweet
 
 
 @app.post("/api/sweets/{sweet_id}/restock")
-def restock_sweet(sweet_id: int):
+def restock_sweet(
+    sweet_id: int,
+    user=Depends(require_admin)
+):
     db = SessionLocal()
     sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
 
@@ -220,4 +255,5 @@ def restock_sweet(sweet_id: int):
     db.commit()
     db.refresh(sweet)
     db.close()
+
     return sweet

@@ -1,59 +1,135 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sweet Shop</title>
+    <title>Sweet Shop Management System</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: auto;
+            background-color: #f5f7fa;
+            margin: 0;
         }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1, h2 {
+            text-align: center;
+        }
+
         input, button {
-            margin: 5px 0;
-            padding: 6px;
             width: 100%;
+            padding: 8px;
+            margin: 6px 0;
         }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .secondary {
+            background: #16a34a;
+        }
+
+        .danger {
+            background: #dc2626;
+        }
+
+        .link {
+            text-align: center;
+            color: #2563eb;
+            cursor: pointer;
+        }
+
         .sweet {
-            border: 1px solid #ccc;
-            padding: 10px;
+            border: 1px solid #ddd;
+            padding: 12px;
             margin-top: 10px;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        .row {
+            display: flex;
+            gap: 6px;
+        }
+
+        #registerPage, #dashboard {
+            display: none;
         }
     </style>
 </head>
 <body>
 
-<h2>Register</h2>
-<input id="regEmail" placeholder="Email">
-<input id="regPassword" placeholder="Password" type="password">
-<button onclick="register()">Register</button>
+<div class="container">
 
-<h2>Login</h2>
-<input id="loginEmail" placeholder="Email">
-<input id="loginPassword" placeholder="Password" type="password">
-<button onclick="login()">Login</button>
+<h1>Sweet Shop Management System</h1>
 
-<h2>Add Sweet (Admin)</h2>
-<input id="sweetName" placeholder="Sweet name">
-<input id="sweetCategory" placeholder="Category">
-<input id="sweetPrice" placeholder="Price" type="number">
-<input id="sweetQuantity" placeholder="Quantity" type="number">
-<button onclick="addSweet()">Add Sweet</button>
+<!-- LOGIN -->
+<div id="loginPage">
+    <h2>Login</h2>
+    <input id="loginEmail" placeholder="Email">
+    <input id="loginPassword" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <div class="link" onclick="showRegister()">Not registered? Register</div>
+</div>
 
+<!-- REGISTER -->
+<div id="registerPage">
+    <h2>Register</h2>
+    <input id="regEmail" placeholder="Email">
+    <input id="regPassword" type="password" placeholder="Password">
+    <button onclick="register()">Register</button>
+    <div class="link" onclick="showLogin()">Back to Login</div>
+</div>
 
-<h2>Search Sweets</h2>
-<input id="searchName" placeholder="Search by name">
-<input id="searchCategory" placeholder="Search by category">
-<input id="minPrice" placeholder="Min price" type="number">
-<input id="maxPrice" placeholder="Max price" type="number">
-<button onclick="searchSweets()">Search</button>
-<button onclick="loadSweets()">Show All</button>
+<!-- DASHBOARD -->
+<div id="dashboard">
 
-<h2>Sweets</h2>
-<div id="sweets"></div>
+    <h2>Add New Sweet</h2>
+    <input id="sweetName" placeholder="Name">
+    <input id="sweetCategory" placeholder="Category">
+    <input id="sweetPrice" type="number" placeholder="Price">
+    <input id="sweetQuantity" type="number" placeholder="Quantity">
+    <button onclick="addSweet()">Add Sweet</button>
 
+    <h2>Search</h2>
+    <input id="searchName" placeholder="Name">
+    <input id="searchCategory" placeholder="Category">
+    <input id="minPrice" type="number" placeholder="Min Price">
+    <input id="maxPrice" type="number" placeholder="Max Price">
+    <button onclick="searchSweets()">Search</button>
+    <button class="secondary" onclick="loadSweets()">Show All</button>
+
+    <h2>Sweets</h2>
+    <div id="sweets"></div>
+</div>
+
+</div>
 
 <script>
 let token = "";
+showLogin();
+
+function showLogin() {
+    loginPage.style.display = "block";
+    registerPage.style.display = "none";
+    dashboard.style.display = "none";
+}
+
+function showRegister() {
+    loginPage.style.display = "none";
+    registerPage.style.display = "block";
+}
 
 function register() {
     fetch("http://127.0.0.1:8000/api/auth/register", {
@@ -63,15 +139,8 @@ function register() {
             email: regEmail.value,
             password: regPassword.value
         })
-    })
-    .then(r => {
-        if (!r.ok) throw new Error("Register failed");
-        return r.json();
-    })
-    .then(() => alert("Registered successfully"))
-    .catch(e => alert(e.message));
+    }).then(() => showLogin());
 }
-
 
 function login() {
     fetch("http://127.0.0.1:8000/api/auth/login", {
@@ -82,102 +151,78 @@ function login() {
             password: loginPassword.value
         })
     })
-    .then(r => {
-        if (!r.ok) throw new Error("Login failed");
-        return r.json();
-    })
+    .then(r => r.json())
     .then(d => {
         token = d.access_token;
-        alert("Login successful");
-    })
-    .catch(e => alert(e.message));
+        loginPage.style.display = "none";
+        registerPage.style.display = "none";
+        dashboard.style.display = "block";
+        loadSweets();
+    });
 }
 
 function addSweet() {
     fetch("http://127.0.0.1:8000/api/sweets", {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
             name: sweetName.value,
             category: sweetCategory.value,
             price: Number(sweetPrice.value),
             quantity: Number(sweetQuantity.value)
         })
-    })
-    .then(r => {
-        if (!r.ok) throw new Error("Failed to add sweet");
-        return r.json();
-    })
-    .then(() => {
-        alert("Sweet added");
-        loadSweets();
-    })
-    .catch(e => alert(e.message));
+    }).then(loadSweets);
 }
-
-function searchSweets() {
-    let url = "http://127.0.0.1:8000/api/sweets/search?";
-
-    if (searchName.value) {
-        url += `name=${searchName.value}&`;
-    }
-    if (searchCategory.value) {
-        url += `category=${searchCategory.value}&`;
-    }
-    if (minPrice.value) {
-        url += `min_price=${minPrice.value}&`;
-    }
-    if (maxPrice.value) {
-        url += `max_price=${maxPrice.value}&`;
-    }
-
-    fetch(url)
-        .then(r => r.json())
-        .then(data => renderSweets(data));
-}
-
 
 function loadSweets() {
     fetch("http://127.0.0.1:8000/api/sweets")
         .then(r => r.json())
-        .then(data => renderSweets(data));
+        .then(renderSweets);
+}
+
+function searchSweets() {
+    let url = "http://127.0.0.1:8000/api/sweets/search?";
+    if (searchName.value) url += `name=${searchName.value}&`;
+    if (searchCategory.value) url += `category=${searchCategory.value}&`;
+    if (minPrice.value) url += `min_price=${minPrice.value}&`;
+    if (maxPrice.value) url += `max_price=${maxPrice.value}&`;
+
+    fetch(url).then(r => r.json()).then(renderSweets);
 }
 
 function renderSweets(data) {
     sweets.innerHTML = "";
-
-    if (data.length === 0) {
-        sweets.innerHTML = "No sweets found";
-        return;
-    }
-
     data.forEach(s => {
-        const disabled = s.quantity === 0 ? "disabled" : "";
-        const buttonText = s.quantity === 0 ? "Out of stock" : "Purchase";
-
         sweets.innerHTML += `
-            <div class="sweet">
-                <b>${s.name}</b><br>
-                Category: ${s.category}<br>
-                Price: ${s.price}<br>
-                Qty: ${s.quantity}<br>
-                <button ${disabled} onclick="purchase(${s.id})">
-                    ${buttonText}
-                </button>
+        <div class="sweet">
+            <b>${s.name}</b><br>
+            Category: ${s.category}<br>
+            Price: <input id="price-${s.id}" type="number" value="${s.price}">
+            Quantity: <input id="qty-${s.id}" type="number" value="${s.quantity}">
+            <div class="row">
+                <button onclick="updateSweet(${s.id})">Update</button>
+                <button class="secondary" onclick="purchase(${s.id})">Purchase</button>
             </div>
-        `;
+        </div>`;
     });
 }
 
+function updateSweet(id) {
+    fetch(`http://127.0.0.1:8000/api/sweets/${id}`, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            price: Number(document.getElementById(`price-${id}`).value),
+            quantity: Number(document.getElementById(`qty-${id}`).value)
+        })
+    }).then(loadSweets);
+}
 
 function purchase(id) {
     fetch(`http://127.0.0.1:8000/api/sweets/${id}/purchase`, {
         method: "POST"
-    }).then(() => loadSweets());
+    }).then(loadSweets);
 }
-loadSweets();
 </script>
 
 </body>

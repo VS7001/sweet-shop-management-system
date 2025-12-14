@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sweet Shop</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 6px;
+            width: 100%;
+        }
+        .sweet {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Register</h2>
+<input id="regEmail" placeholder="Email">
+<input id="regPassword" placeholder="Password" type="password">
+<button onclick="register()">Register</button>
+
+<h2>Login</h2>
+<input id="loginEmail" placeholder="Email">
+<input id="loginPassword" placeholder="Password" type="password">
+<button onclick="login()">Login</button>
+
+<h2>Add Sweet (Admin)</h2>
+<input id="sweetName" placeholder="Sweet name">
+<input id="sweetCategory" placeholder="Category">
+<input id="sweetPrice" placeholder="Price" type="number">
+<input id="sweetQuantity" placeholder="Quantity" type="number">
+<button onclick="addSweet()">Add Sweet</button>
+
+
+<h2>Search Sweets</h2>
+<input id="searchName" placeholder="Search by name">
+<input id="searchCategory" placeholder="Search by category">
+<input id="minPrice" placeholder="Min price" type="number">
+<input id="maxPrice" placeholder="Max price" type="number">
+<button onclick="searchSweets()">Search</button>
+<button onclick="loadSweets()">Show All</button>
+
+<h2>Sweets</h2>
+<div id="sweets"></div>
+
+
+<script>
+let token = "";
+
+function register() {
+    fetch("http://127.0.0.1:8000/api/auth/register", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            email: regEmail.value,
+            password: regPassword.value
+        })
+    })
+    .then(r => {
+        if (!r.ok) throw new Error("Register failed");
+        return r.json();
+    })
+    .then(() => alert("Registered successfully"))
+    .catch(e => alert(e.message));
+}
+
+
+function login() {
+    fetch("http://127.0.0.1:8000/api/auth/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            email: loginEmail.value,
+            password: loginPassword.value
+        })
+    })
+    .then(r => {
+        if (!r.ok) throw new Error("Login failed");
+        return r.json();
+    })
+    .then(d => {
+        token = d.access_token;
+        alert("Login successful");
+    })
+    .catch(e => alert(e.message));
+}
+
+function addSweet() {
+    fetch("http://127.0.0.1:8000/api/sweets", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            name: sweetName.value,
+            category: sweetCategory.value,
+            price: Number(sweetPrice.value),
+            quantity: Number(sweetQuantity.value)
+        })
+    })
+    .then(r => {
+        if (!r.ok) throw new Error("Failed to add sweet");
+        return r.json();
+    })
+    .then(() => {
+        alert("Sweet added");
+        loadSweets();
+    })
+    .catch(e => alert(e.message));
+}
+
+function searchSweets() {
+    let url = "http://127.0.0.1:8000/api/sweets/search?";
+
+    if (searchName.value) {
+        url += `name=${searchName.value}&`;
+    }
+    if (searchCategory.value) {
+        url += `category=${searchCategory.value}&`;
+    }
+    if (minPrice.value) {
+        url += `min_price=${minPrice.value}&`;
+    }
+    if (maxPrice.value) {
+        url += `max_price=${maxPrice.value}&`;
+    }
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => renderSweets(data));
+}
+
+
+function loadSweets() {
+    fetch("http://127.0.0.1:8000/api/sweets")
+        .then(r => r.json())
+        .then(data => renderSweets(data));
+}
+
+function renderSweets(data) {
+    sweets.innerHTML = "";
+
+    if (data.length === 0) {
+        sweets.innerHTML = "No sweets found";
+        return;
+    }
+
+    data.forEach(s => {
+        const disabled = s.quantity === 0 ? "disabled" : "";
+        const buttonText = s.quantity === 0 ? "Out of stock" : "Purchase";
+
+        sweets.innerHTML += `
+            <div class="sweet">
+                <b>${s.name}</b><br>
+                Category: ${s.category}<br>
+                Price: ${s.price}<br>
+                Qty: ${s.quantity}<br>
+                <button ${disabled} onclick="purchase(${s.id})">
+                    ${buttonText}
+                </button>
+            </div>
+        `;
+    });
+}
+
+
+function purchase(id) {
+    fetch(`http://127.0.0.1:8000/api/sweets/${id}/purchase`, {
+        method: "POST"
+    }).then(() => loadSweets());
+}
+loadSweets();
+</script>
+
+</body>
+</html>

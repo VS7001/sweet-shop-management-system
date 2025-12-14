@@ -1,4 +1,11 @@
-import sys
-import os
+import pytest
+from app.database import SessionLocal
+from app.models import User, Sweet
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+@pytest.fixture(autouse=True)
+def clear_database():
+    db = SessionLocal()
+    db.query(User).delete()
+    db.query(Sweet).delete()
+    db.commit()
+    db.close()

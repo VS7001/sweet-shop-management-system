@@ -127,16 +127,31 @@ def list_sweets():
 
 
 @app.get("/api/sweets/search")
-def search_sweets(name: str | None = None):
+def search_sweets(
+    name: str | None = None,
+    category: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+):
     db = SessionLocal()
     query = db.query(Sweet)
 
     if name:
-        query = query.filter(Sweet.name.ilike(name))
+        query = query.filter(Sweet.name.ilike(f"%{name}%"))
+
+    if category:
+        query = query.filter(Sweet.category.ilike(f"%{category}%"))
+
+    if min_price is not None:
+        query = query.filter(Sweet.price >= min_price)
+
+    if max_price is not None:
+        query = query.filter(Sweet.price <= max_price)
 
     results = query.all()
     db.close()
     return results
+
 
 @app.post("/api/sweets/{sweet_id}/purchase")
 def purchase_sweet(sweet_id: int):
@@ -173,3 +188,34 @@ def restock_sweet(sweet_id: int):
     db.close()
     return sweet
 
+@app.put("/api/sweets/{sweet_id}")
+def update_sweet(sweet_id: int, data: SweetRequest):
+    db = SessionLocal()
+    sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
+
+    if not sweet:
+        db.close()
+        raise HTTPException(status_code=404, detail="Sweet not found")
+
+    sweet.name = data.name
+    sweet.category = data.category
+    sweet.price = data.price
+    sweet.quantity = data.quantity
+
+    db.commit()
+    db.refresh(sweet)
+    db.close()
+    return sweet
+
+@app.delete("/api/sweets/{sweet_id}", status_code=204)
+def delete_sweet(sweet_id: int):
+    db = SessionLocal()
+    sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
+
+    if not sweet:
+        db.close()
+        raise HTTPException(status_code=404, detail="Sweet not found")
+
+    db.delete(sweet)
+    db.commit()
+    db.close()

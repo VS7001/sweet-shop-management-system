@@ -170,15 +170,24 @@ Open the following file in your browser:
 
 ## 📸 Screenshots
 
-Screenshots included in final submission:
+### Login
+![Login](screenshots/login.png)
 
-- Login Page  
-- Registration Page  
-- Dashboard  
-- Add Sweet  
-- Search Sweets  
-- Update Sweet  
-- Purchase Sweet  
+### Register
+![Register](screenshots/register.png)
+
+### Dashboard – Add Sweet
+![Dashboard](screenshots/dashboard.png)
+
+### Search & Filters
+![Search](screenshots/search.png)
+
+### Sweet Added Successfully
+![Sweet Added](screenshots/sweet-added.png)
+
+### Sweets List (Update & Purchase)
+![Sweets](screenshots/sweets-list.png)
+
 
 ---
 

@@ -1,14 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from jose import jwt
 from datetime import datetime, timedelta
-from .database import SessionLocal, engine
+
+from .database import SessionLocal, engine, Base
 from .models import User, Sweet
-from .database import Base
 from fastapi.middleware.cors import CORSMiddleware
 
-
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,11 +20,10 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-# JWT config (simple for assignment)
 SECRET_KEY = "secret123"
 ALGORITHM = "HS256"
 
-# --------- Request Models ---------
+# ---------- REQUEST MODELS ----------
 
 class RegisterRequest(BaseModel):
     email: str
@@ -33,27 +33,31 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
-class SweetRequest(BaseModel):
+class SweetCreateRequest(BaseModel):
     name: str
     category: str
     price: float
     quantity: int
 
+class SweetUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    price: Optional[float] = None
+    quantity: Optional[int] = None
 
-# --------- Routes ---------
+# ---------- ROUTES ----------
 
 @app.get("/")
 def root():
     return {"message": "Sweet Shop Backend is running"}
 
-# --------- Register ---------
+# ---------- AUTH ----------
 
 @app.post("/api/auth/register", status_code=201)
 def register_user(data: RegisterRequest):
     db = SessionLocal()
 
-    existing_user = db.query(User).filter(User.email == data.email).first()
-    if existing_user:
+    if db.query(User).filter(User.email == data.email).first():
         db.close()
         raise HTTPException(status_code=400, detail="User already exists")
 
@@ -87,13 +91,12 @@ def login_user(data: LoginRequest):
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     db.close()
 
-    return {
-        "access_token": token,
-        "token_type": "bearer"
-    }
+    return {"access_token": token, "token_type": "bearer"}
+
+# ---------- SWEETS ----------
 
 @app.post("/api/sweets", status_code=201)
-def add_sweet(data: SweetRequest):
+def add_sweet(data: SweetCreateRequest):
     db = SessionLocal()
 
     sweet = Sweet(
@@ -108,13 +111,7 @@ def add_sweet(data: SweetRequest):
     db.refresh(sweet)
     db.close()
 
-    return {
-        "id": sweet.id,
-        "name": sweet.name,
-        "category": sweet.category,
-        "price": sweet.price,
-        "quantity": sweet.quantity
-    }
+    return sweet
 
 
 @app.get("/api/sweets")
@@ -125,26 +122,22 @@ def list_sweets():
     return sweets
 
 
-
 @app.get("/api/sweets/search")
 def search_sweets(
-    name: str | None = None,
-    category: str | None = None,
-    min_price: float | None = None,
-    max_price: float | None = None,
+    name: Optional[str] = None,
+    category: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
 ):
     db = SessionLocal()
     query = db.query(Sweet)
 
     if name:
         query = query.filter(Sweet.name.ilike(f"%{name}%"))
-
     if category:
         query = query.filter(Sweet.category.ilike(f"%{category}%"))
-
     if min_price is not None:
         query = query.filter(Sweet.price >= min_price)
-
     if max_price is not None:
         query = query.filter(Sweet.price <= max_price)
 
@@ -152,6 +145,47 @@ def search_sweets(
     db.close()
     return results
 
+
+@app.put("/api/sweets/{sweet_id}")
+def update_sweet(sweet_id: int, data: SweetUpdateRequest):
+    db = SessionLocal()
+
+    sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
+    if not sweet:
+        db.close()
+        raise HTTPException(status_code=404, detail="Sweet not found")
+
+    if data.name is not None:
+        sweet.name = data.name
+    if data.category is not None:
+        sweet.category = data.category
+    if data.price is not None:
+        sweet.price = data.price
+    if data.quantity is not None:
+        sweet.quantity = data.quantity
+
+    db.commit()
+    db.refresh(sweet)
+    db.close()
+
+    return sweet
+
+
+@app.delete("/api/sweets/{sweet_id}", status_code=204)
+def delete_sweet(sweet_id: int):
+    db = SessionLocal()
+    sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
+
+    if not sweet:
+        db.close()
+        raise HTTPException(status_code=404, detail="Sweet not found")
+
+    db.delete(sweet)
+    db.commit()
+    db.close()
+
+
+# ---------- INVENTORY ----------
 
 @app.post("/api/sweets/{sweet_id}/purchase")
 def purchase_sweet(sweet_id: int):
@@ -187,35 +221,3 @@ def restock_sweet(sweet_id: int):
     db.refresh(sweet)
     db.close()
     return sweet
-
-@app.put("/api/sweets/{sweet_id}")
-def update_sweet(sweet_id: int, data: SweetRequest):
-    db = SessionLocal()
-    sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
-
-    if not sweet:
-        db.close()
-        raise HTTPException(status_code=404, detail="Sweet not found")
-
-    sweet.name = data.name
-    sweet.category = data.category
-    sweet.price = data.price
-    sweet.quantity = data.quantity
-
-    db.commit()
-    db.refresh(sweet)
-    db.close()
-    return sweet
-
-@app.delete("/api/sweets/{sweet_id}", status_code=204)
-def delete_sweet(sweet_id: int):
-    db = SessionLocal()
-    sweet = db.query(Sweet).filter(Sweet.id == sweet_id).first()
-
-    if not sweet:
-        db.close()
-        raise HTTPException(status_code=404, detail="Sweet not found")
-
-    db.delete(sweet)
-    db.commit()
-    db.close()

@@ -1,113 +1,127 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sweet Shop Management</title>
+    <title>Sweet Shop Management System</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 900px;
-            margin: auto;
-            padding: 20px;
+            background-color: #f5f7fa;
+            margin: 0;
         }
 
-        h2 {
-            margin-top: 30px;
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1, h2 {
+            text-align: center;
         }
 
         input, button {
-            padding: 6px;
-            margin: 4px 0;
+            width: 100%;
+            padding: 8px;
+            margin: 6px 0;
         }
 
         button {
+            background: #2563eb;
+            color: white;
+            border: none;
             cursor: pointer;
+            border-radius: 4px;
         }
 
-        .hidden {
-            display: none;
-        }
-
-        .row {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 15px;
-        }
+        .secondary { background: #16a34a; }
+        .link { text-align: center; color: #2563eb; cursor: pointer; }
 
         .sweet {
-            border: 1px solid #ccc;
-            padding: 10px;
+            border: 1px solid #ddd;
+            padding: 12px;
             margin-top: 10px;
+            border-radius: 6px;
+            background: #fafafa;
         }
+
+        .row { display: flex; gap: 6px; }
+        #registerPage, #dashboard { display: none; }
+
+        .search-box {
+            display: grid;
+         grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+    .search-box button {
+        grid-column: span 2;
+    }
+
     </style>
 </head>
 <body>
 
+<div class="container">
 <h1>Sweet Shop Management System</h1>
 
-<!-- LOGIN -->
-<div id="loginSection">
+<div id="loginPage">
     <h2>Login</h2>
     <input id="loginEmail" placeholder="Email">
     <input id="loginPassword" type="password" placeholder="Password">
     <button onclick="login()">Login</button>
-    <p>
-        Not registered?
-        <button onclick="showRegister()">Register</button>
-    </p>
+    <div class="link" onclick="showRegister()">Not registered? Register</div>
 </div>
 
-<!-- REGISTER -->
-<div id="registerSection" class="hidden">
+<div id="registerPage">
     <h2>Register</h2>
     <input id="regEmail" placeholder="Email">
     <input id="regPassword" type="password" placeholder="Password">
     <button onclick="register()">Register</button>
-    <button onclick="showLogin()">Back to Login</button>
+    <div class="link" onclick="showLogin()">Back to Login</div>
 </div>
 
-<!-- DASHBOARD -->
-<div id="dashboard" class="hidden">
+<div id="dashboard">
+    <h2>Add New Sweet</h2>
+    <input id="sweetName" placeholder="Name">
+    <input id="sweetCategory" placeholder="Category">
+    <input id="sweetPrice" type="number" placeholder="Price">
+    <input id="sweetQuantity" type="number" placeholder="Quantity">
+    <button onclick="addSweet()">Add Sweet</button>
 
-    <!-- SEARCH -->
-    <h2>Search Sweets</h2>
-    <div class="row">
-        <input id="searchName" placeholder="Name">
-        <input id="searchCategory" placeholder="Category">
-        <input id="minPrice" type="number" placeholder="Min Price">
-        <input id="maxPrice" type="number" placeholder="Max Price">
-        <button onclick="searchSweets()">Search</button>
-        <button onclick="loadSweets()">Show All</button>
-    </div>
+    <h2>Search</h2>
 
-    <!-- ADD SWEET -->
-    <h2>Add Sweet</h2>
-    <div class="row">
-        <input id="sweetName" placeholder="Name">
-        <input id="sweetCategory" placeholder="Category">
-        <input id="sweetPrice" type="number" placeholder="Price">
-        <input id="sweetQuantity" type="number" placeholder="Quantity">
-        <button onclick="addSweet()">Add Sweet</button>
-    </div>
+<div class="search-box">
+    <input id="searchName" placeholder="Name">
+    <input id="searchCategory" placeholder="Category">
+    <input id="minPrice" type="number" placeholder="Min Price">
+    <input id="maxPrice" type="number" placeholder="Max Price">
 
-    <!-- SWEETS LIST -->
-    <h2>Available Sweets</h2>
+    <button onclick="searchSweets()">Search</button>
+    <button class="secondary" onclick="loadSweets()">Show All</button>
+</div>
+
+
+    <h2>Sweets</h2>
     <div id="sweets"></div>
+</div>
 </div>
 
 <script>
-let token = "";
-
-/* ---------- AUTH ---------- */
-
-function showRegister() {
-    loginSection.classList.add("hidden");
-    registerSection.classList.remove("hidden");
-}
+showLogin();
 
 function showLogin() {
-    registerSection.classList.add("hidden");
-    loginSection.classList.remove("hidden");
+    loginPage.style.display = "block";
+    registerPage.style.display = "none";
+    dashboard.style.display = "none";
+}
+
+function showRegister() {
+    loginPage.style.display = "none";
+    registerPage.style.display = "block";
 }
 
 function register() {
@@ -118,14 +132,15 @@ function register() {
             email: regEmail.value,
             password: regPassword.value
         })
-    }).then(r => {
+    })
+    .then(r => {
         if (!r.ok) throw new Error("Registration failed");
-        alert("Registered successfully. Please login.");
-        regEmail.value = "";
-        regPassword.value = "";
+        alert("Registered successfully");
         showLogin();
-    }).catch(e => alert(e.message));
+    })
+    .catch(() => alert("User already exists or invalid data"));
 }
+
 
 function login() {
     fetch("http://127.0.0.1:8000/api/auth/login", {
@@ -135,18 +150,21 @@ function login() {
             email: loginEmail.value,
             password: loginPassword.value
         })
-    }).then(r => {
+    })
+    .then(r => {
         if (!r.ok) throw new Error("Login failed");
         return r.json();
-    }).then(d => {
-        token = d.access_token;
-        loginSection.classList.add("hidden");
-        dashboard.classList.remove("hidden");
+    })
+    .then(() => {
+        alert("Login successful");
+        loginPage.style.display = "none";
+        registerPage.style.display = "none";
+        dashboard.style.display = "block";
         loadSweets();
-    }).catch(e => alert(e.message));
+    })
+    .catch(() => alert("Invalid email or password"));
 }
 
-/* ---------- SWEETS ---------- */
 
 function addSweet() {
     fetch("http://127.0.0.1:8000/api/sweets", {
@@ -158,7 +176,9 @@ function addSweet() {
             price: Number(sweetPrice.value),
             quantity: Number(sweetQuantity.value)
         })
-    }).then(() => {
+    })
+    .then(() => {
+        alert("Sweet added successfully");
         sweetName.value = "";
         sweetCategory.value = "";
         sweetPrice.value = "";
@@ -167,6 +187,7 @@ function addSweet() {
     });
 }
 
+
 function loadSweets() {
     fetch("http://127.0.0.1:8000/api/sweets")
         .then(r => r.json())
@@ -174,43 +195,29 @@ function loadSweets() {
 }
 
 function searchSweets() {
-    const params = new URLSearchParams();
+    let url = "http://127.0.0.1:8000/api/sweets/search?";
+    if (searchName.value) url += `name=${searchName.value}&`;
+    if (searchCategory.value) url += `category=${searchCategory.value}&`;
+    if (minPrice.value) url += `min_price=${minPrice.value}&`;
+    if (maxPrice.value) url += `max_price=${maxPrice.value}&`;
 
-    if (searchName.value) params.append("name", searchName.value);
-    if (searchCategory.value) params.append("category", searchCategory.value);
-    if (minPrice.value) params.append("min_price", minPrice.value);
-    if (maxPrice.value) params.append("max_price", maxPrice.value);
-
-    fetch(`http://127.0.0.1:8000/api/sweets/search?${params.toString()}`)
-        .then(r => r.json())
-        .then(renderSweets);
+    fetch(url).then(r => r.json()).then(renderSweets);
 }
 
 function renderSweets(data) {
     sweets.innerHTML = "";
-
-    if (data.length === 0) {
-        sweets.innerHTML = "No sweets found";
-        return;
-    }
-
     data.forEach(s => {
         sweets.innerHTML += `
-            <div class="sweet">
-                <b>${s.name}</b><br>
-                Category: ${s.category}<br>
-                Price: ${s.price}<br>
-                Quantity: ${s.quantity}<br><br>
-
-                <input id="price-${s.id}" type="number" value="${s.price}">
-                <input id="qty-${s.id}" type="number" value="${s.quantity}">
+        <div class="sweet">
+            <b>${s.name}</b><br>
+            Category: ${s.category}<br>
+            Price: <input id="price-${s.id}" type="number" value="${s.price}">
+            Quantity: <input id="qty-${s.id}" type="number" value="${s.quantity}">
+            <div class="row">
                 <button onclick="updateSweet(${s.id})">Update</button>
-
-                <button onclick="purchase(${s.id})" ${s.quantity === 0 ? "disabled" : ""}>
-                    Purchase
-                </button>
+                <button class="secondary" onclick="purchase(${s.id})">Purchase</button>
             </div>
-        `;
+        </div>`;
     });
 }
 
@@ -222,13 +229,18 @@ function updateSweet(id) {
             price: Number(document.getElementById(`price-${id}`).value),
             quantity: Number(document.getElementById(`qty-${id}`).value)
         })
-    }).then(() => loadSweets());
+    })
+    .then(() => {
+        alert("Sweet updated successfully");
+        loadSweets();
+    });
 }
+
 
 function purchase(id) {
     fetch(`http://127.0.0.1:8000/api/sweets/${id}/purchase`, {
         method: "POST"
-    }).then(() => loadSweets());
+    }).then(loadSweets);
 }
 </script>
 
